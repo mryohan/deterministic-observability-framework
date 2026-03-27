@@ -28,7 +28,7 @@ classifiers = [
 
 dependencies = [
     "crewai[tools]>=0.108.0",
-    "litellm",
+    "litellm>=1.80.0,!=1.82.7,!=1.82.8",  # CVE: supply chain attack on 1.82.7/1.82.8 (2026-03-24)
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "rich>=13.9.0",
