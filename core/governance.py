@@ -74,6 +74,20 @@ def _check_no_hallucination(text: str) -> bool:
     return True
 
 
+def _check_invalid_links(text: str, context: str = "") -> bool:
+    """Check if link validation context reports invalid URLs.
+
+    The link_validator pre-check writes results to context:
+    - "INVALID_LINKS:<url1>,<url2>" = invalid URLs found
+    - "LINKS_VALIDATED:OK" or empty = no issues
+
+    Returns True (pass) if no invalid links.
+    """
+    if context.startswith("INVALID_LINKS:"):
+        return False
+    return True
+
+
 # Hard rules — BLOCK if violated
 HARD_RULES = [
     {
@@ -102,6 +116,11 @@ HARD_RULES = [
         "id": "TRANSITION_REPLY_MISUSE",
         "description": "Transition phrase must match the actual reply content",
         "check": lambda text: _check_transition_misuse(text),
+    },
+    {
+        "id": "INVALID_LINKS",
+        "description": "Output must not contain dead or fabricated URLs",
+        "check": _check_invalid_links,
     },
 ]
 
@@ -345,7 +364,14 @@ class ConstitutionEnforcer:
         # Hard rules — any violation = fail
         for rule in HARD_RULES:
             try:
-                if not rule["check"](output):
+                check_fn = rule["check"]
+                import inspect
+                params = inspect.signature(check_fn).parameters
+                if len(params) >= 2:
+                    passed_check = check_fn(output, context)
+                else:
+                    passed_check = check_fn(output)
+                if not passed_check:
                     violations.append(f"[{rule['id']}] {rule['description']}")
             except Exception as e:
                 logger.warning(f"Hard rule '{rule['id']}' check error: {e}")

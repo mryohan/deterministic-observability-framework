@@ -214,8 +214,17 @@ def run_crew(crew_name: str, crew: Any, input_text: str = "",
             checkpoint.complete_step(step_id, output[:2000])
             metrics.log_agent_step(run_id, crew_name, current_provider, step_ms, "ok", attempt)
 
+            # Pre-governance link validation
+            from core.link_validator import validate_links
+            link_result = validate_links(output)
+            gov_context = ""
+            if not link_result.valid:
+                gov_context = f"INVALID_LINKS:{','.join(link_result.invalid_urls)}"
+            else:
+                gov_context = "LINKS_VALIDATED:OK"
+
             # Governance check
-            gov_result = enforcer.check(output)
+            gov_result = enforcer.check(output, context=gov_context)
             metrics.log_governance(run_id, gov_result.passed, gov_result.score, gov_result.violations)
 
             # DAG: governance node

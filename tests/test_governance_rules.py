@@ -90,5 +90,94 @@ class TestTransitionReplyMisuse(unittest.TestCase):
         self.assertTrue(self._check_passes(text))
 
 
+from unittest.mock import patch, MagicMock
+from core.link_validator import validate_links, LinkValidationResult, _extract_urls
+
+
+class TestLinkValidator(unittest.TestCase):
+    """Link validator extracts URLs, checks them, detects homepage redirects."""
+
+    def test_extract_urls(self):
+        text = "Check https://www.raywhite.co.id/listing/123 and also https://wa.me/628123"
+        urls = _extract_urls(text)
+        self.assertEqual(urls, ["https://www.raywhite.co.id/listing/123"])
+
+    def test_safe_domains_excluded(self):
+        text = "Contact https://wa.me/628123 or https://maps.google.com/place/123 or https://t.me/someone"
+        urls = _extract_urls(text)
+        self.assertEqual(urls, [])
+
+    @patch("core.link_validator.requests.head")
+    def test_valid_link_passes(self, mock_head):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.url = "https://www.raywhite.co.id/listing/123"
+        mock_head.return_value = resp
+        result = validate_links("See https://www.raywhite.co.id/listing/123")
+        self.assertTrue(result.valid)
+        self.assertEqual(result.invalid_urls, [])
+
+    @patch("core.link_validator.requests.head")
+    def test_404_link_fails(self, mock_head):
+        resp = MagicMock()
+        resp.status_code = 404
+        resp.url = "https://www.raywhite.co.id/listing/999"
+        mock_head.return_value = resp
+        result = validate_links("See https://www.raywhite.co.id/listing/999")
+        self.assertFalse(result.valid)
+        self.assertIn("https://www.raywhite.co.id/listing/999", result.invalid_urls)
+
+    @patch("core.link_validator.requests.head")
+    def test_homepage_redirect_fails(self, mock_head):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.url = "https://www.raywhite.co.id/"
+        mock_head.return_value = resp
+        result = validate_links(
+            "See https://www.raywhite.co.id/listing/456",
+            homepage_url="https://www.raywhite.co.id",
+        )
+        self.assertFalse(result.valid)
+
+    @patch("core.link_validator.requests.head")
+    def test_connection_error_fails(self, mock_head):
+        import requests as req
+        mock_head.side_effect = req.ConnectionError("unreachable")
+        result = validate_links("See https://fake-domain-xyz.com/page")
+        self.assertFalse(result.valid)
+
+    def test_no_urls_passes(self):
+        result = validate_links("This reply has no links at all.")
+        self.assertTrue(result.valid)
+
+
+class TestInvalidLinksRule(unittest.TestCase):
+    """INVALID_LINKS blocks output when link validation fails."""
+
+    def setUp(self):
+        self.enforcer = ConstitutionEnforcer()
+
+    def test_invalid_links_in_context_triggers_violation(self):
+        text = "Check this listing: https://www.raywhite.co.id/listing/fake"
+        context = "INVALID_LINKS:https://www.raywhite.co.id/listing/fake"
+        result = self.enforcer.check(text, context=context)
+        violations = [v for v in result.violations if "INVALID_LINKS" in v]
+        self.assertEqual(len(violations), 1)
+
+    def test_no_invalid_links_in_context_passes(self):
+        text = "Check this listing: https://www.raywhite.co.id/listing/123"
+        context = ""
+        result = self.enforcer.check(text, context=context)
+        violations = [v for v in result.violations if "INVALID_LINKS" in v]
+        self.assertEqual(len(violations), 0)
+
+    def test_valid_links_context_passes(self):
+        text = "Check this listing: https://www.raywhite.co.id/listing/123"
+        context = "LINKS_VALIDATED:OK"
+        result = self.enforcer.check(text, context=context)
+        violations = [v for v in result.violations if "INVALID_LINKS" in v]
+        self.assertEqual(len(violations), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
