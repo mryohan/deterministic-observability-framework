@@ -67,7 +67,7 @@ rules:
       rule_key: "LANGUAGE_COMPLIANCE"
       severity: "block"
       action: "block"
-      description: "Response must be in English or contain structured data"
+      description: "Response must be in a supported language (EN, ID, MS, ZH) or structured data"
       pattern:
         type: "language_check"
         conditions:
@@ -124,6 +124,28 @@ rules:
         type: "max_length"
         max_chars: 50000
       evidence: "violation logged as '[MAX_LENGTH] Output cannot exceed 50K chars'"
+
+    - id: "HARD-005"
+      name: "Transition Reply Misuse"
+      rule_key: "TRANSITION_REPLY_MISUSE"
+      severity: "block"
+      action: "block"
+      description: "Transition phrase must match the actual reply content category"
+      pattern:
+        type: "category_mismatch"
+        categories: ["search_listing", "contact_inquiry", "general_info"]
+      evidence: "violation logged as '[TRANSITION_REPLY_MISUSE] Transition phrase must match the actual reply content'"
+
+    - id: "HARD-006"
+      name: "Invalid Links"
+      rule_key: "INVALID_LINKS"
+      severity: "block"
+      action: "block"
+      description: "Output must not contain dead, fabricated, or homepage-redirecting URLs"
+      pattern:
+        type: "url_validation"
+        homepage_url: "https://www.raywhite.co.id"
+      evidence: "violation logged as '[INVALID_LINKS] Output must not contain dead or fabricated URLs'"
 
   # AST static analysis rules (enforced by core/ast_verifier.py)
   ast:
