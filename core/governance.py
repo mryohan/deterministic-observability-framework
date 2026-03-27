@@ -83,7 +83,7 @@ HARD_RULES = [
     },
     {
         "id": "LANGUAGE_COMPLIANCE",
-        "description": "Response must be in English or contain structured data",
+        "description": "Response must be in a supported language (EN, ID, MS, ZH) or structured data",
         "check": lambda text: _check_language(text),
     },
     {
@@ -97,6 +97,11 @@ HARD_RULES = [
         "id": "MAX_LENGTH",
         "description": "Output cannot exceed 50K chars",
         "check": lambda text: len(text) <= 50000,
+    },
+    {
+        "id": "TRANSITION_REPLY_MISUSE",
+        "description": "Transition phrase must match the actual reply content",
+        "check": lambda text: _check_transition_misuse(text),
     },
 ]
 
@@ -161,21 +166,123 @@ _sync_rules_from_yaml(_CONSTITUTION)
 
 
 def _check_language(text: str) -> bool:
-    """Check if text is in English or contains structured data (JSON, markdown)."""
-    # Structured data (JSON, pydantic output) always passes
+    """Check if text is in a supported language (EN, ID, MS, ZH) or structured data."""
     stripped = text.strip()
     if stripped.startswith("{") or stripped.startswith("["):
         return True
-    # English markers
-    english_markers = [
-        "the", "is", "and", "of", "to", "in", "for", "with", "that", "this",
-        "are", "was", "has", "have", "from", "by", "an", "be", "as", "on",
-    ]
+
+    # Mandarin: CJK Unified Ideographs
+    cjk_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
+    if len(text) > 0 and cjk_chars / len(text) > 0.10:
+        return True
+
+    # Word-based detection for EN, ID, MS
     words = text.lower().split()[:200]
     if not words:
         return False
-    english_count = sum(1 for w in words if w in english_markers)
-    return english_count / len(words) > 0.05
+
+    _LANGUAGE_MARKERS = {
+        "en": {"the", "is", "and", "of", "to", "in", "for", "with", "that", "this",
+               "are", "was", "has", "have", "from", "by", "an", "be", "as", "on"},
+        "id": {"yang", "dan", "di", "ini", "itu", "untuk", "dengan", "dari", "ada",
+               "tidak", "akan", "bisa", "sudah", "juga", "atau", "saya", "kami",
+               "mereka", "seperti", "pada"},
+        "ms": {"yang", "dan", "di", "ini", "itu", "untuk", "dengan", "dari", "ada",
+               "tidak", "akan", "boleh", "sudah", "juga", "atau", "saya", "kami",
+               "mereka", "seperti", "pada"},
+    }
+
+    for markers in _LANGUAGE_MARKERS.values():
+        count = sum(1 for w in words if w in markers)
+        if count / len(words) > 0.05:
+            return True
+
+    return False
+
+
+# ── Transition reply misuse detection ────────────────────────────────
+
+_TRANSITION_CATEGORIES: dict[str, dict] = {
+    "search_listing": {
+        "transitions": [
+            "sedang mencari properti", "searching for properties",
+            "正在搜索房产", "sedang mencari hartanah",
+            "mencari listing", "looking for listings",
+            "sedang cari properti",
+        ],
+        "content_keywords": [
+            "harga", "bedroom", "kamar tidur", "luas", "sqm", "listing",
+            "properti", "price", "rumah", "apartemen", "ruko", "tanah",
+            "价格", "房产", "卧室", "面积", "平方米",
+            "bilik tidur", "hartanah",
+        ],
+    },
+    "contact_inquiry": {
+        "transitions": [
+            "saya catat dulu", "let me note that down",
+            "我先记录一下", "saya catatkan dahulu",
+            "saya catat ya", "noted, let me",
+        ],
+        "content_keywords": [
+            "hubungi", "kontak", "telepon", "whatsapp", "email", "agent",
+            "nama", "contact", "call", "phone", "reach",
+            "联系", "电话", "邮件", "经纪人",
+            "hubungi", "ejen",
+        ],
+    },
+    "general_info": {
+        "transitions": [
+            "saya cek dulu", "let me check", "让我查一下",
+            "saya semak dahulu", "saya lihat dulu", "checking",
+        ],
+        "content_keywords": [],
+    },
+}
+
+
+def _check_transition_misuse(text: str) -> bool:
+    """Check that transition phrases match the actual reply content.
+
+    Returns True (pass) if no misuse detected.
+    Returns False (violation) if transition category doesn't match content.
+    """
+    text_lower = text.lower()
+
+    matched_category: str | None = None
+    for category, config in _TRANSITION_CATEGORIES.items():
+        for phrase in config["transitions"]:
+            if phrase in text_lower:
+                matched_category = category
+                break
+        if matched_category:
+            break
+
+    if matched_category is None:
+        return True
+
+    if matched_category == "general_info":
+        return True
+
+    scores: dict[str, int] = {}
+    for category, config in _TRANSITION_CATEGORIES.items():
+        if category == "general_info":
+            continue
+        keywords = config["content_keywords"]
+        scores[category] = sum(1 for kw in keywords if kw in text_lower)
+
+    if not scores:
+        return True
+
+    matched_score = scores.get(matched_category, 0)
+    max_score = max(scores.values())
+
+    if matched_score == 0 and max_score > 0:
+        return False
+
+    if matched_score < max_score:
+        return False
+
+    return True
 
 
 def _check_no_repetition(text: str) -> bool:
