@@ -88,6 +88,18 @@ def _check_invalid_links(text: str, context: str = "") -> bool:
     return True
 
 
+# Known third-party property portals (Indonesian market). Platform-domain rule:
+# agent replies must source listings exclusively from the client network
+# (e.g. raywhite.co.id), never from external portals — neither as links nor
+# as cited "Sources".
+_THIRD_PARTY_PORTAL_RE = re.compile(
+    r"\b(?:99\.co|rumah123\.com|rumah\.com|lamudi\.co(?:\.id)?|olx\.co\.id|"
+    r"propertyguru\.com(?:\.\w+)?|dotproperty\.id|pinhome\.id|travelio\.com|"
+    r"brighton\.co\.id)\b",
+    re.IGNORECASE,
+)
+
+
 # Hard rules — BLOCK if violated
 HARD_RULES = [
     {
@@ -121,6 +133,11 @@ HARD_RULES = [
         "id": "INVALID_LINKS",
         "description": "Output must not contain dead or fabricated URLs",
         "check": _check_invalid_links,
+    },
+    {
+        "id": "NO_THIRD_PARTY_PORTAL",
+        "description": "Must not source or link third-party property portals",
+        "check": lambda text: not _THIRD_PARTY_PORTAL_RE.search(text),
     },
 ]
 

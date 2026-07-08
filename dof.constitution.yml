@@ -147,6 +147,27 @@ rules:
         homepage_url: "https://www.raywhite.co.id"
       evidence: "violation logged as '[INVALID_LINKS] Output must not contain dead or fabricated URLs'"
 
+    - id: "HARD-007"
+      name: "No Third-Party Property Portals"
+      rule_key: "NO_THIRD_PARTY_PORTAL"
+      severity: "block"
+      action: "block"
+      description: "Must not source or link third-party property portals"
+      pattern:
+        type: "regex_scan"
+        patterns:
+          - "99\\.co"
+          - "rumah123\\.com"
+          - "rumah\\.com"
+          - "lamudi\\.co(\\.id)?"
+          - "olx\\.co\\.id"
+          - "propertyguru\\.com"
+          - "dotproperty\\.id"
+          - "pinhome\\.id"
+          - "travelio\\.com"
+          - "brighton\\.co\\.id"
+      evidence: "violation logged as '[NO_THIRD_PARTY_PORTAL] Must not source or link third-party property portals'"
+
   # AST static analysis rules (enforced by core/ast_verifier.py)
   ast:
     - id: "AST-001"
