@@ -92,9 +92,14 @@ def _check_invalid_links(text: str, context: str = "") -> bool:
 # agent replies must source listings exclusively from the client network
 # (e.g. raywhite.co.id), never from external portals — neither as links nor
 # as cited "Sources".
+# Matches both DOMAIN forms (rumah123.com, olx.co.id) and bare BRAND names
+# (Rumah123, OLX, Lamudi). Bare-name arm added 2026-07-20 to mirror the Express
+# outbound guard (src-api/src/lib/whatsapp-helpers.ts THIRD_PARTY_PORTAL_RE)
+# after nemotron-3-ultra-550b offered a "Portal properti (Rumah123, 99.co)"
+# menu — a model that ignores the SOUL prohibition. Keep the two lists in sync.
 _THIRD_PARTY_PORTAL_RE = re.compile(
-    r"\b(?:99\.co|rumah123\.com|rumah\.com|lamudi\.co(?:\.id)?|olx\.co\.id|"
-    r"propertyguru\.com(?:\.\w+)?|dotproperty\.id|pinhome\.id|travelio\.com|"
+    r"\b(?:99\.co|rumah123|rumah\.com|lamudi|olx|propertyguru|dotproperty|"
+    r"pinhome|travelio|jual[\s-]?beli\.com|facebook\s+marketplace|"
     r"brighton\.co\.id)\b",
     re.IGNORECASE,
 )
