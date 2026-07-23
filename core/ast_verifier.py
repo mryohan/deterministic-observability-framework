@@ -34,6 +34,22 @@ BLOCKED_IMPORTS = [
 
 UNSAFE_CALLS = ["eval", "exec", "compile"]
 
+# os/process functions that execute code or spawn processes. `import os` is
+# ALLOWED (needed for os.getenv, os.path, ...), so blocking the module import
+# would break safe code — instead we block the dangerous CALLS by name. These
+# names are distinctive enough not to collide with unrelated objects' methods
+# (list.remove etc. are NOT here), and matching on the attribute name also
+# catches aliased access (`import os as o; o.system(...)`).
+DANGEROUS_CALLS = {
+    "system", "popen",
+    "fork", "forkpty",
+    "execl", "execle", "execlp", "execlpe",
+    "execv", "execve", "execvp", "execvpe",
+    "spawnl", "spawnle", "spawnlp", "spawnlpe",
+    "spawnv", "spawnve", "spawnvp", "spawnvpe",
+    "posix_spawn", "posix_spawnp",
+}
+
 SECRET_PATTERNS = [
     re.compile(r"sk-[a-zA-Z0-9]{20,}"),        # OpenAI
     re.compile(r"ghp_[a-zA-Z0-9]{36,}"),        # GitHub PAT
@@ -128,6 +144,18 @@ class _UnsafePatternVisitor(ast.NodeVisitor):
                 line_number=node.lineno,
                 code_snippet=self._snippet(node.lineno),
                 message=f"Unsafe call: '{func_name}()'",
+            ))
+
+        # os/process exec calls reached via an allowed `import os` (e.g.
+        # os.system, os.popen, os.execv). Blocked here since the import itself
+        # is permitted for safe os.* uses.
+        if func_name in DANGEROUS_CALLS:
+            self.violations.append(Violation(
+                rule_id="BLOCKED_IMPORTS",
+                severity="block",
+                line_number=node.lineno,
+                code_snippet=self._snippet(node.lineno),
+                message=f"Blocked call: '{func_name}()' (process/exec)",
             ))
 
         # Check __import__()

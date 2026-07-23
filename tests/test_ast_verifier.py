@@ -98,6 +98,30 @@ class TestASTVerifierBlockedImports(unittest.TestCase):
         rule_ids = [v["rule_id"] for v in result.violations]
         self.assertIn("BLOCKED_IMPORTS", rule_ids)
 
+    def test_import_os_then_system_is_blocked(self):
+        # `import os` is allowed (os.getenv/os.path), but os.system() is a
+        # sandbox-escape RCE and must be blocked at the call site.
+        code = "import os\nos.system('rm -rf /')\n"
+        result = self.verifier.verify(code)
+        self.assertFalse(result.passed)
+        rule_ids = [v["rule_id"] for v in result.violations]
+        self.assertIn("BLOCKED_IMPORTS", rule_ids)
+
+    def test_os_popen_and_aliased_os_are_blocked(self):
+        for code in (
+            "import os\nos.popen('id')\n",
+            "import os as o\no.system('id')\n",  # aliased access still caught
+            "import os\nos.execv('/bin/sh', ['sh'])\n",
+        ):
+            result = self.verifier.verify(code)
+            self.assertFalse(result.passed, msg=code)
+
+    def test_os_getenv_still_safe(self):
+        # Safe os usage must still pass — we block dangerous calls, not the import.
+        code = "import os\napi_key = os.getenv('OPENAI_API_KEY')\np = os.path.join('a', 'b')\n"
+        result = self.verifier.verify(code)
+        self.assertTrue(result.passed)
+
 
 class TestASTVerifierSecrets(unittest.TestCase):
     """Detect hardcoded API keys and tokens."""
