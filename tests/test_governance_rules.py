@@ -11,7 +11,7 @@ from core.governance import ConstitutionEnforcer
 
 
 class TestLanguageCompliance(unittest.TestCase):
-    """LANGUAGE_COMPLIANCE must pass for EN, ID, MS, ZH and structured data."""
+    """LANGUAGE_COMPLIANCE must pass for EN, ID, MS, ZH, JA, KO and structured data."""
 
     def setUp(self):
         self.enforcer = ConstitutionEnforcer()
@@ -36,6 +36,24 @@ class TestLanguageCompliance(unittest.TestCase):
     def test_mandarin_passes(self):
         text = "这套房产位于市中心，交通便利，购物方便。共有三间卧室和两间浴室，非常适合家庭居住。"
         self.assertTrue(self._check_passes(text))
+
+    def test_korean_passes(self):
+        text = "이 매물은 도심에 위치해 있으며 대중교통과 쇼핑 시설 이용이 매우 편리합니다. 침실 3개와 욕실 2개가 있어 가족이 살기에 좋습니다."
+        self.assertTrue(self._check_passes(text))
+
+    def test_japanese_passes(self):
+        text = "この物件は市の中心部にあり、公共交通機関やショッピングエリアへのアクセスがとても便利です。寝室が3つ、浴室が2つあり、ご家族にぴったりです。"
+        self.assertTrue(self._check_passes(text))
+
+    def test_kana_heavy_japanese_passes(self):
+        # Almost no kanji — the old Han-only count missed it
+        text = "ありがとうございます。こちらのおへやは、まだごらんいただけます。ごつごうのよいひにちをおしえてください。よろしくおねがいします。"
+        self.assertTrue(self._check_passes(text))
+
+    def test_latin_text_with_one_cjk_name_still_needs_markers(self):
+        # A couple of CJK characters must not wave gibberish through
+        text = "xkcd qqq zzz vvv bbb nnn mmm lll kkk jjj hhh ggg fff ddd sss aaa 万达 " * 3
+        self.assertFalse(self._check_passes(text))
 
     def test_structured_json_passes(self):
         text = '{"listings": [{"id": 1, "price": 500000}]}'

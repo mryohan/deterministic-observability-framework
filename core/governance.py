@@ -114,7 +114,7 @@ HARD_RULES = [
     },
     {
         "id": "LANGUAGE_COMPLIANCE",
-        "description": "Response must be in a supported language (EN, ID, MS, ZH) or structured data",
+        "description": "Response must be in a supported language (EN, ID, MS, ZH, JA, KO) or structured data",
         "check": lambda text: _check_language(text),
     },
     {
@@ -206,14 +206,30 @@ def _sync_rules_from_yaml(constitution: dict) -> None:
 _sync_rules_from_yaml(_CONSTITUTION)
 
 
+def _is_cjk_char(c: str) -> bool:
+    """Han ideograph (ZH/JA), hiragana/katakana (JA) or Hangul (KO)."""
+    return (
+        "一" <= c <= "鿿"      # CJK Unified Ideographs
+        or "㐀" <= c <= "䶿"   # CJK Extension A
+        or "぀" <= c <= "ヿ"   # Hiragana + Katakana
+        or "가" <= c <= "힯"   # Hangul syllables
+        or "ᄀ" <= c <= "ᇿ"   # Hangul Jamo
+        or "㄰" <= c <= "㆏"   # Hangul compatibility Jamo
+    )
+
+
 def _check_language(text: str) -> bool:
-    """Check if text is in a supported language (EN, ID, MS, ZH) or structured data."""
+    """Check if text is in a supported language (EN, ID, MS, ZH, JA, KO) or structured data."""
     stripped = text.strip()
     if stripped.startswith("{") or stripped.startswith("["):
         return True
 
-    # Mandarin: CJK Unified Ideographs
-    cjk_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
+    # Mandarin, Japanese, Korean: Han ideographs, kana, Hangul. These scripts
+    # have no marker words to count (Mandarin and Japanese are not even
+    # space-separated), so the script itself is the signal. Japanese prose is
+    # mostly kana and Korean is all Hangul; counting only Han ideographs
+    # failed every Korean reply and kana-heavy Japanese ones.
+    cjk_chars = sum(1 for c in text if _is_cjk_char(c))
     if len(text) > 0 and cjk_chars / len(text) > 0.10:
         return True
 

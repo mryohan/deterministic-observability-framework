@@ -67,12 +67,13 @@ rules:
       rule_key: "LANGUAGE_COMPLIANCE"
       severity: "block"
       action: "block"
-      description: "Response must be in a supported language (EN, ID, MS, ZH) or structured data"
+      description: "Response must be in a supported language (EN, ID, MS, ZH, JA, KO) or structured data"
       pattern:
         type: "language_check"
         conditions:
           - "text starts with '{' or '[' → pass (structured data)"
-          - "english marker ratio in first 200 words > 0.05 → pass"
+          - "Han + kana + Hangul characters > 10% of the text → pass (ZH, JA, KO)"
+          - "EN, ID or MS marker ratio in first 200 words > 0.05 → pass"
         english_markers:
           - "the"
           - "is"
@@ -95,7 +96,7 @@ rules:
           - "as"
           - "on"
         threshold: 0.05
-      evidence: "violation logged as '[LANGUAGE_COMPLIANCE] Response must be in English or contain structured data'"
+      evidence: "violation logged as '[LANGUAGE_COMPLIANCE] Response must be in a supported language (EN, ID, MS, ZH, JA, KO) or structured data'"
 
     - id: "HARD-003"
       name: "No Empty Output"
